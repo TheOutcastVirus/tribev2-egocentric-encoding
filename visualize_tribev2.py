@@ -68,8 +68,9 @@ def run_inference(use_llama: bool, input_path: Path | None = None):
         "data.text_feature.model_name": "microsoft/Phi-3.5-mini-instruct" if not use_llama else "meta-llama/Llama-3.2-3B",
         "data.text_feature.device": "cpu",
         "data.audio_feature.device": "cpu",
-        "data.video_feature.image.batch_size": 1,   # process 1 clip at a time
-        "data.video_feature.num_frames": 16,         # 16 frames instead of 64
+        "data.video_feature.image.device": "cpu",
+        "data.video_feature.image.batch_size": 1,
+        "data.video_feature.num_frames": 16,
     }
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)

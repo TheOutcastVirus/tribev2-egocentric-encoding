@@ -3,3 +3,4 @@ cache/
 *.tsv
 *.wav
 
+.venv
