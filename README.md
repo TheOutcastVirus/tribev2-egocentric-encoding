@@ -78,3 +78,8 @@ Available views: `left`, `right`, `dorsal`, `ventral`, `medial_left`, `medial_ri
 ## Caching
 
 Model weights and extracted features are cached in `./cache/` after the first run. Subsequent runs skip the slow feature-extraction step and load from disk.
+
+
+## Dataset
+
+We are using BuildAI's open-sourced Egocentric dataset: https://huggingface.co/datasets/builddotai/Egocentric-100K/tree/main

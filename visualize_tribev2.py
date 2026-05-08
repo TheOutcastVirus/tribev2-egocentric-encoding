@@ -55,17 +55,18 @@ def parse_args():
                         "(requires --preds to be omitted so segments are available).")
     p.add_argument("--timesteps", type=int, default=None,
                    help="How many TR timesteps to plot. Defaults to all.")
-    p.add_argument("--llama", action="store_true",
-                   help="Use real LLaMA 3.2-3B encoder when re-running inference.")
+    p.add_argument("--phi", action="store_true",
+                   help="Use Phi-3.5-mini-instruct as text encoder substitute instead of LLaMA "
+                        "(pipeline-valid but not neuroscientifically meaningful).")
     return p.parse_args()
 
 
-def run_inference(use_llama: bool, input_path: Path | None = None):
+def run_inference(use_phi: bool, input_path: Path | None = None):
     """Run the full pipeline and return (preds, segments)."""
     from tribev2.demo_utils import TribeModel
 
     config_update = {
-        "data.text_feature.model_name": "microsoft/Phi-3.5-mini-instruct" if not use_llama else "meta-llama/Llama-3.2-3B",
+        "data.text_feature.model_name": "microsoft/Phi-3.5-mini-instruct" if use_phi else "meta-llama/Llama-3.2-3B",
         "data.text_feature.device": "cpu",
         "data.audio_feature.device": "cpu",
         "data.video_feature.image.device": "cpu",
@@ -111,6 +112,27 @@ def make_plotter():
     # Use nilearn backend — works headless and doesn't need a display server.
     from tribev2.plotting.cortical import PlotBrainNilearn
     return PlotBrainNilearn(mesh="fsaverage5")
+
+
+def plot_timeseries(preds: np.ndarray, save: Path | None):
+    """Line plot of per-TR activation statistics across time."""
+    tr = np.arange(preds.shape[0])
+    mean_act   = np.abs(preds).mean(axis=1)
+    peak_act   = np.abs(preds).max(axis=1)
+    spread_act = np.abs(preds).std(axis=1)
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.fill_between(tr, mean_act - spread_act, mean_act + spread_act,
+                    alpha=0.25, color="steelblue", label="±1 SD (spread)")
+    ax.plot(tr, mean_act,  color="steelblue",  lw=2,   label="Mean |activation|")
+    ax.plot(tr, peak_act,  color="firebrick",  lw=1.5, linestyle="--", label="Peak |activation|")
+    ax.set_xlabel("Timestep (TR)")
+    ax.set_ylabel("|Activation|")
+    ax.set_title("TRIBE v2 — cortical activation over time")
+    ax.legend(framealpha=0.7)
+    ax.set_xlim(tr[0], tr[-1])
+    fig.tight_layout()
+    _save_or_show(fig, save, suffix="_timeseries")
 
 
 def plot_mean_activation(plotter, preds: np.ndarray, views: list[str],
@@ -179,7 +201,7 @@ def main():
         print(f"Loading predictions from {args.preds}...")
         preds = np.load(args.preds)
     else:
-        preds, segments = run_inference(use_llama=args.llama, input_path=args.input)
+        preds, segments = run_inference(use_phi=args.phi, input_path=args.input)
 
     print(f"Predictions shape: {preds.shape}  (n_timesteps={preds.shape[0]}, n_vertices={preds.shape[1]})")
     print(f"Value range: [{preds.min():.4f}, {preds.max():.4f}]\n")
@@ -188,6 +210,10 @@ def main():
 
     # Always render the mean activation map (single clear image)
     plot_mean_activation(plotter, preds, views=args.views, save=args.save)
+
+    # Time series — only meaningful when there are multiple TRs
+    if preds.shape[0] > 1:
+        plot_timeseries(preds, save=args.save)
 
     # Also render the per-timestep grid if we have more than one TR
     if preds.shape[0] > 1:

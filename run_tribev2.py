@@ -31,29 +31,28 @@ def parse_args():
     p.add_argument("--input", type=Path, default=None,
                    help="Path to .txt, .mp3/.wav, or .mp4 file. "
                         "Defaults to a short Shakespeare demo text.")
-    p.add_argument("--llama", action="store_true",
-                   help="Use the real meta-llama/Llama-3.2-3B text encoder "
-                        "(requires HuggingFace gated-model access).")
+    p.add_argument("--phi", action="store_true",
+                   help="Use microsoft/Phi-3.5-mini-instruct as a text encoder substitute "
+                        "(pipeline-valid but not neuroscientifically meaningful).")
     return p.parse_args()
 
 
-def load_model(use_llama: bool):
+def load_model(use_phi: bool):
     from tribev2.demo_utils import TribeModel
 
     # Offload text + audio extractors to CPU so V-JEPA2 ViT-G fits in 16 GB VRAM.
     # Features are cached after the first run so this slowdown is one-time only.
     config_update = {
-        "data.text_feature.model_name": "microsoft/Phi-3.5-mini-instruct" if not use_llama else "meta-llama/Llama-3.2-3B",
+        "data.text_feature.model_name": "microsoft/Phi-3.5-mini-instruct" if use_phi else "meta-llama/Llama-3.2-3B",
         "data.text_feature.device": "cpu",
         "data.audio_feature.device": "cpu",
         "data.video_feature.image.batch_size": 1,   # process 1 clip at a time
         "data.video_feature.num_frames": 16,         # 16 frames instead of 64
     }
 
-    if not use_llama:
+    if use_phi:
         print("[warn] Using Phi-3.5-mini-instruct as text encoder substitute.")
-        print("       Predictions are pipeline-valid but NOT neuroscientifically meaningful.")
-        print("       Pass --llama once you have access to meta-llama/Llama-3.2-3B.\n")
+        print("       Predictions are pipeline-valid but NOT neuroscientifically meaningful.\n")
 
     print("Loading TRIBE v2 checkpoint from HuggingFace...")
     model = TribeModel.from_pretrained(
@@ -93,7 +92,7 @@ def main():
     args = parse_args()
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    model = load_model(use_llama=args.llama)
+    model = load_model(use_phi=args.phi)
 
     print("Building events dataframe (TTS + transcription on first run)...")
     df = build_events(model, args.input)
